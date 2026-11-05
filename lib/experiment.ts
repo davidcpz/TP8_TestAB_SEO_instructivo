@@ -150,3 +150,10 @@ export function cookieOptions(secure: boolean, maxAge?: number) {
     ...(typeof maxAge === 'number' ? { maxAge } : {}),
   }
 }
+
+// Crawlers conocidos. Se identifican en el User-Agent.
+const CRAWLER_PATTERN = /bot|crawler|spider|crawling|slurp|facebookexternalhit/i
+
+export function isCrawler(userAgent: string | null): boolean {
+  return userAgent !== null && CRAWLER_PATTERN.test(userAgent)
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { COOKIE, THIRTY_DAYS, assignVariant, cookieOptions, isVariant } from '@/lib/experiment'
+import { COOKIE, THIRTY_DAYS, assignVariant, cookieOptions, isCrawler, isVariant } from '@/lib/experiment'
 
 export function proxy(request: NextRequest) {
   // 1. El preview es un instrumento: no asigna ni escribe cookies.
@@ -8,14 +8,19 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 2. Si ya tiene visitante y variante válidos, no se toca nada.
+  // 2. Un crawler ve siempre el control: sin cookie, sin asignación, sin contar visita.
+  if (isCrawler(request.headers.get('user-agent'))) {
+    return NextResponse.next()
+  }
+
+  // 3. Si ya tiene visitante y variante válidos, no se toca nada.
   const savedVisitor = request.cookies.get(COOKIE.visitor)?.value
   const savedVariant = request.cookies.get(COOKIE.variant)?.value
   if (savedVisitor && isVariant(savedVariant)) {
     return NextResponse.next()
   }
 
-  // 3. Visitante nuevo: ID aleatorio una sola vez, variante derivada con el hash.
+  // 4. Visitante nuevo: ID aleatorio una sola vez, variante derivada con el hash.
   const visitorId = savedVisitor ?? crypto.randomUUID()
   const variant = assignVariant(visitorId)
 
