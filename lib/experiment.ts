@@ -1,3 +1,5 @@
+import { validateHeaderValue } from "http"
+
 export type Variant = 'a' | 'b'
 
 export type VariantStats = {
@@ -71,12 +73,23 @@ export function emptyLog(): ExperimentLog {
   }
 }
 
-export function assignVariant(_visitorId: string): Variant {
-  // TODO: hash estable. El mismo id tiene que devolver siempre la misma variante.
-  return 'a'
-}
+const FNV_OFFSET_BASIS = 0x811c9dc5
+const FNV_PRIME = 0x01000193
 
-   export function conversionRate(stats: VariantStats): number | null {
+export function fnv1a(value: string): number {
+  let hash = FNV_OFFSET_BASIS
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= byte
+    hash = Math.imul(hash, FNV_PRIME)
+  }
+  return hash >>> 0
+}
+  
+export function assignVariant(visitorId: string): Variant {
+    return fnv1a(visitorId) % 2 === 0 ? 'a' : 'b'
+  }
+
+export function conversionRate(stats: VariantStats): number | null {
      if (stats.impressions <= 0) return null
      return stats.conversions / stats.impressions
    }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
+  assignVariant,
   HASH_EXAMPLE_ID,
   TEST_CASE,
   VARIANTS,
@@ -58,7 +59,7 @@ export default function BitacoraPage() {
       </table>
       <p className="font-mono text-sm">B − A = {formatPoints(rateGap(TEST_CASE))}</p>
       <p className="font-mono text-sm">
-        assignVariant({`'${HASH_EXAMPLE_ID}'`}) → pendiente
+        assignVariant({`'${HASH_EXAMPLE_ID}'`}) → {assignVariant(HASH_EXAMPLE_ID).toUpperCase()}
       </p>
       <Link href="/practica" className="text-sm text-muted-foreground underline">
         Volver a la landing
