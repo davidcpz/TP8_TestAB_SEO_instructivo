@@ -61,7 +61,7 @@ export default async function PracticaPage({ searchParams }: PracticaPageProps) 
           ? `Vista previa del copy ${preview.toUpperCase()}. No modifica tu asignación y lleva noindex.`
           : `Variante asignada: ${variant.toUpperCase()}. Recargar no la cambia.`}
       </p>
-      <Landing variant={variant} />
+      <Landing variant={variant} preview={preview !== null} />
       <div className="flex flex-wrap gap-2">
         <Link href="/practica?preview=a" className="rounded-md border border-border px-3 py-1.5 text-sm">
           Ver copy A

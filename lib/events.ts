@@ -21,3 +21,14 @@ export async function readLog(): Promise<ExperimentLog> {
 export async function recordImpression(visitorId: string, variant: Variant): Promise<void> {
   await sql`INSERT INTO impressions (visitor_id, variant) VALUES (${visitorId}, ${variant})`
 }
+
+// Devuelve true si se guardó, false si ese visitante ya había convertido.
+export async function insertConversion(visitorId: string, variant: Variant): Promise<boolean> {
+  const rows = await sql`
+    INSERT INTO conversions (visitor_id, variant)
+    VALUES (${visitorId}, ${variant})
+    ON CONFLICT (visitor_id) DO NOTHING
+    RETURNING visitor_id
+  `
+  return rows.length > 0
+}
