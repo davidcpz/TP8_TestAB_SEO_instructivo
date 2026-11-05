@@ -1,5 +1,3 @@
-import { validateHeaderValue } from "http"
-
 export type Variant = 'a' | 'b'
 
 export type VariantStats = {
@@ -73,6 +71,7 @@ export function emptyLog(): ExperimentLog {
   }
 }
 
+// FNV-1a de 32 bits. Determinística: el mismo texto da siempre el mismo número.
 const FNV_OFFSET_BASIS = 0x811c9dc5
 const FNV_PRIME = 0x01000193
 
@@ -84,15 +83,15 @@ export function fnv1a(value: string): number {
   }
   return hash >>> 0
 }
-  
+
 export function assignVariant(visitorId: string): Variant {
-    return fnv1a(visitorId) % 2 === 0 ? 'a' : 'b'
-  }
+  return fnv1a(visitorId) % 2 === 0 ? 'a' : 'b'
+}
 
 export function conversionRate(stats: VariantStats): number | null {
-     if (stats.impressions <= 0) return null
-     return stats.conversions / stats.impressions
-   }
+  if (stats.impressions <= 0) return null
+  return stats.conversions / stats.impressions
+}
 
 export function rateGap(log: ExperimentLog): number | null {
   const control = conversionRate(log.a)
@@ -101,9 +100,37 @@ export function rateGap(log: ExperimentLog): number | null {
   return (treatment - control) * 100
 }
 
-export function parseLog(_raw: string | undefined): ExperimentLog {
-  // TODO: validar el JSON antes de usarlo. Si falla, log vacío.
-  return emptyLog()
+// Validación del log: enteros >= 0 y conversiones <= impresiones.
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function parseStats(value: unknown): VariantStats | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { impressions, conversions } = value as Record<string, unknown>
+  if (!isCount(impressions) || !isCount(conversions)) return null
+  if (conversions > impressions) return null
+  return { impressions, conversions }
+}
+
+export function parseLog(raw: string | undefined): ExperimentLog {
+  if (!raw) return emptyLog()
+  let data: unknown
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    console.warn('parseLog: el log no es JSON válido')
+    return emptyLog()
+  }
+  if (typeof data !== 'object' || data === null) return emptyLog()
+  const record = data as Record<string, unknown>
+  const a = parseStats(record.a)
+  const b = parseStats(record.b)
+  if (!a || !b) {
+    console.warn('parseLog: datos inválidos, se usa el log vacío', data)
+    return emptyLog()
+  }
+  return { a, b }
 }
 
 export function serializeLog(log: ExperimentLog): string {

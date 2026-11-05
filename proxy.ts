@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { COOKIE, THIRTY_DAYS, assignVariant, cookieOptions, isCrawler, isVariant } from '@/lib/experiment'
+import { recordImpression } from '@/lib/events'
+import {
+  COOKIE,
+  SESSION_WINDOW,
+  THIRTY_DAYS,
+  assignVariant,
+  cookieOptions,
+  isCrawler,
+  isVariant,
+  type Variant,
+} from '@/lib/experiment'
 
-export function proxy(request: NextRequest) {
-  // 1. El preview es un instrumento: no asigna ni escribe cookies.
+export async function proxy(request: NextRequest) {
+  // 1. El preview es un instrumento: no asigna, no escribe cookies, no cuenta.
   if (request.nextUrl.searchParams.has('preview')) {
     return NextResponse.next()
   }
@@ -13,26 +23,42 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 3. Si ya tiene visitante y variante válidos, no se toca nada.
-  const savedVisitor = request.cookies.get(COOKIE.visitor)?.value
-  const savedVariant = request.cookies.get(COOKIE.variant)?.value
-  if (savedVisitor && isVariant(savedVariant)) {
+  // 3. Next precarga los links en segundo fondo. Eso no es una visita.
+  if (request.headers.has('next-router-prefetch') || request.headers.get('purpose') === 'prefetch') {
     return NextResponse.next()
   }
 
-  // 4. Visitante nuevo: ID aleatorio una sola vez, variante derivada con el hash.
+  // 4. Visitante: el guardado, o uno nuevo con la variante derivada del hash.
+  const savedVisitor = request.cookies.get(COOKIE.visitor)?.value
+  const savedVariant = request.cookies.get(COOKIE.variant)?.value
+  const isNewVisitor = !savedVisitor || !isVariant(savedVariant)
+
   const visitorId = savedVisitor ?? crypto.randomUUID()
-  const variant = assignVariant(visitorId)
+  const variant: Variant = !isNewVisitor && isVariant(savedVariant) ? savedVariant : assignVariant(visitorId)
 
-  // Para que page.tsx vea la variante YA en este primer request.
-  request.cookies.set(COOKIE.visitor, visitorId)
-  request.cookies.set(COOKIE.variant, variant)
+  // Para que page.tsx vea la variante ya en este primer request.
+  if (isNewVisitor) {
+    request.cookies.set(COOKIE.visitor, visitorId)
+    request.cookies.set(COOKIE.variant, variant)
+  }
   const response = NextResponse.next({ request: { headers: request.headers } })
-
-  // Para que el navegador las guarde y las mande en los próximos requests.
   const secure = request.nextUrl.protocol === 'https:'
-  response.cookies.set(COOKIE.visitor, visitorId, cookieOptions(secure, THIRTY_DAYS))
-  response.cookies.set(COOKIE.variant, variant, cookieOptions(secure, THIRTY_DAYS))
+
+  if (isNewVisitor) {
+    response.cookies.set(COOKIE.visitor, visitorId, cookieOptions(secure, THIRTY_DAYS))
+    response.cookies.set(COOKIE.variant, variant, cookieOptions(secure, THIRTY_DAYS))
+  }
+
+  // 5. Una impresión por sesión de 30 minutos.
+  if (!request.cookies.has(COOKIE.impressed)) {
+    try {
+      await recordImpression(visitorId, variant)
+      response.cookies.set(COOKIE.impressed, '1', cookieOptions(secure, SESSION_WINDOW))
+    } catch (error) {
+      // Si la base falla, la página se muestra igual. Sin la cookie, se reintenta en la próxima carga.
+      console.error('No se pudo anotar la impresión', error)
+    }
+  }
 
   return response
 }

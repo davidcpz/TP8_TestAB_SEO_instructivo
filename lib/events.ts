@@ -1,5 +1,5 @@
 import { sql } from './db'
-import { parseLog, type ExperimentLog } from './experiment'
+import { parseLog, type ExperimentLog, type Variant } from './experiment'
 
 // Lee los conteos por variante y los valida con parseLog antes de usarlos.
 export async function readLog(): Promise<ExperimentLog> {
@@ -15,4 +15,9 @@ export async function readLog(): Promise<ExperimentLog> {
     raw[row.variant] = { impressions: row.impressions, conversions: row.conversions }
   }
   return parseLog(JSON.stringify(raw))
+}
+
+// Una fila por impresión. La regla de "una por sesión" la decide el proxy.
+export async function recordImpression(visitorId: string, variant: Variant): Promise<void> {
+  await sql`INSERT INTO impressions (visitor_id, variant) VALUES (${visitorId}, ${variant})`
 }
