@@ -76,10 +76,10 @@ export function assignVariant(_visitorId: string): Variant {
   return 'a'
 }
 
-export function conversionRate(_stats: VariantStats): number | null {
-  // TODO: conversiones / impresiones. Sin impresiones, devolver null, no 0.
-  return null
-}
+   export function conversionRate(stats: VariantStats): number | null {
+     if (stats.impressions <= 0) return null
+     return stats.conversions / stats.impressions
+   }
 
 export function rateGap(log: ExperimentLog): number | null {
   const control = conversionRate(log.a)
